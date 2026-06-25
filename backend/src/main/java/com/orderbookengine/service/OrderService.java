@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -35,9 +36,22 @@ public class OrderService {
     private final Map<Long, Order> allOrders = new LinkedHashMap<>();
     /** Every trade produced, in execution order. */
     private final List<Trade> tradeLog = new ArrayList<>();
+    /** Consumers (e.g. the WebSocket feed) notified after each mutation. */
+    private final List<MarketDataListener> listeners = new CopyOnWriteArrayList<>();
 
     public OrderService(MatchingEngine engine) {
         this.engine = engine;
+    }
+
+    /** Registers a listener to receive market-data updates after each mutation. */
+    public void addListener(MarketDataListener listener) {
+        listeners.add(listener);
+    }
+
+    private void publish(List<Trade> newTrades) {
+        for (MarketDataListener listener : listeners) {
+            listener.onMarketData(newTrades);
+        }
     }
 
     /**
@@ -58,6 +72,7 @@ public class OrderService {
         List<Trade> trades = engine.process(order);
         allOrders.put(order.getOrderId(), order);
         tradeLog.addAll(trades);
+        publish(trades);
         return new OrderResult(order, trades);
     }
 
@@ -75,6 +90,7 @@ public class OrderService {
         }
         engine.getOrderBook().removeOrder(resting);
         resting.setStatus(OrderStatus.CANCELLED);
+        publish(Collections.emptyList());
         return true;
     }
 
@@ -107,18 +123,22 @@ public class OrderService {
             // Strictly less aggressive at the same price: safe to edit in place,
             // keeping the order's place in the FIFO queue.
             existing.setRemainingQty(newQuantity);
+            publish(Collections.emptyList());
             return new OrderResult(existing, Collections.emptyList());
         }
 
-        // Price change or size increase: must go to the back of the queue. Reuse
-        // the same id so callers keep addressing the order by its original id,
-        // but stamp it with a fresh timestamp so it loses time priority.
-        cancel(orderId);
+        // Price change or size increase: must go to the back of the queue. Remove
+        // the resting order, then re-add under the same id (so callers keep
+        // addressing it) but with a fresh timestamp so it loses time priority.
+        // Done inline rather than via cancel() to emit a single update.
+        engine.getOrderBook().removeOrder(existing);
+        existing.setStatus(OrderStatus.CANCELLED);
         Order replacement = new Order(orderId, existing.getSide(), existing.getType(),
                 newPrice, newQuantity, clock.getAndIncrement());
         List<Trade> trades = engine.process(replacement);
         allOrders.put(replacement.getOrderId(), replacement);
         tradeLog.addAll(trades);
+        publish(trades);
         return new OrderResult(replacement, trades);
     }
 

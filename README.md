@@ -81,6 +81,11 @@ from `OrderService` calls (`JSON → DTO → OrderService → MatchingEngine`).
 | `GET`    | `/orderbook`     | Aggregated book snapshot (`?depth=N`, best first) |
 | `GET`    | `/trades`        | The trade log, in execution order              |
 
+There is also a **WebSocket** market-data feed at `ws://localhost:8080/ws/marketdata`.
+On connect it pushes a full snapshot, then a `{ "book": ..., "trades": [...] }`
+frame after every mutation (new trades are incremental). The UI uses this for
+live updates instead of polling.
+
 ### Try it with curl
 
 Start the server (`cd backend && ./gradlew bootRun`), then run these in order.

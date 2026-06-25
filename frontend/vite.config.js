@@ -11,6 +11,8 @@ export default defineConfig({
       '/orders': 'http://localhost:8080',
       '/orderbook': 'http://localhost:8080',
       '/trades': 'http://localhost:8080',
+      // WebSocket market-data feed.
+      '/ws': { target: 'ws://localhost:8080', ws: true },
     },
   },
 })

@@ -16,18 +16,21 @@ npm install      # first time only
 npm run dev      # serves on http://localhost:5173
 ```
 
-The Vite dev server proxies `/orders`, `/orderbook`, and `/trades` to the backend
+The Vite dev server proxies `/orders` (REST) and `/ws` (WebSocket) to the backend
 on `:8080` (see `vite.config.js`), so the browser only talks to the Vite origin —
 no CORS configuration needed.
 
 ## How it works
 
-- `src/api.js` — thin fetch wrapper over the REST endpoints.
+- `src/api.js` — thin fetch wrapper for submitting orders (REST).
+- `src/useMarketData.js` — subscribes to the `/ws/marketdata` WebSocket; exposes
+  the live book, the accumulated trade log, and a connection flag. Auto-reconnects
+  and merges trades by id.
 - `src/components/OrderForm.jsx` — buy/sell ticket (LIMIT/MARKET/IOC/FOK).
 - `src/components/OrderBookView.jsx` — aggregated bids/asks.
 - `src/components/TradesView.jsx` — recent trades.
-- `src/App.jsx` — polls the read endpoints once a second and refreshes
-  immediately after you submit an order.
+- `src/App.jsx` — renders the feed; submitting an order triggers a server-side
+  broadcast, so there's nothing to refresh by hand.
 
-Polling is a placeholder; Milestone 6 (WebSocket push) will replace it with live
-updates. See the root `ROADMAP.md`.
+Updates are **pushed** over the WebSocket — no polling. The REST read endpoints
+(`GET /orderbook`, `GET /trades`) still exist for ad-hoc queries.

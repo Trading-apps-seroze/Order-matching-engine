@@ -18,6 +18,7 @@ repositories {
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     // The existing engine/service tests are JUnit 4; the vintage engine runs
