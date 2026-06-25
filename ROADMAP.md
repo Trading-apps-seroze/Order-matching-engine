@@ -39,22 +39,23 @@ This is the heart of the project.
 
 ---
 
-## Milestone 2 — Order Management ⬜
+## Milestone 2 — Order Management ✅
 
-Add operations:
+Implemented as `OrderService` (in the `service` package), backed by an
+`orderId → Order` index on `OrderBook` for O(1) lookup.
 
-- `submit(order)`
-- `cancel(orderId)`
-- `modify(orderId, ...)`
+- ✅ `submit(side, type, price, qty)`
+- ✅ `cancel(orderId)`
+- ✅ `modify(orderId, newQty, newPrice)`
 
-Questions to answer:
+Resolved design questions (see [`LEARNINGS.md`](LEARNINGS.md) for the full
+reasoning):
 
-- Can quantity be modified?
-- Can price be modified?
-- Should modification lose time priority?
-
-Most exchanges treat a price change as **cancel + new order**, so it loses queue
-position.
+- **Quantity decrease** at the same price → edited **in place**, keeps time
+  priority.
+- **Quantity increase** or **price change** → handled as **cancel + new order**,
+  loses queue position (a price change is a different queue; extra size can't cut
+  ahead of those already waiting).
 
 ---
 

@@ -69,6 +69,42 @@ Now compare with a fillable FOK — Incoming: `BUY 30 @100 FOK`
 | IOC    | No             | Yes                   | Cancelled            |
 | FOK    | No             | No (all-or-nothing)   | Whole order cancelled if it can't fully fill |
 
+## Modifying orders and time priority
+
+When an order is already resting on the book, can you change it without losing
+your place in the queue? The answer depends on whether the change makes the order
+**more aggressive** (cutting ahead of others) or **less aggressive** (stepping
+back). The guiding principle: *you may keep your queue position only if the
+change cannot disadvantage anyone who was already waiting behind you.*
+
+| Change                | Time priority | Why                                                                                                  |
+|-----------------------|---------------|------------------------------------------------------------------------------------------------------|
+| **Cancel**            | n/a           | The order leaves the book entirely — there is nothing left to prioritise.                             |
+| **Quantity decrease** | **Kept** (edit in place) | You are *removing* liquidity. Nobody behind you is worse off — if anything they move up. So penalising you would be unfair, and exchanges let you shrink in place. |
+| **Quantity increase** | **Lost** (cancel + new) | Extra size at the front of the queue jumps ahead of everyone who was already waiting at that price. That *is* a disadvantage to them, so the added size must go to the back. |
+| **Price change**      | **Lost** (cancel + new) | A different price is a different queue. Your old position has no meaning at the new price, so you join the new price level at the back. |
+
+So "modify = cancel + new" (your first instinct) is correct for **price changes
+and size increases**, but a **size decrease is done in place** and keeps
+priority — that is the one case worth special-casing.
+
+### How this maps to the code
+
+`OrderService.modify(orderId, newQuantity, newPrice)` implements exactly this:
+
+- **Same price *and* quantity reduced** → `existing.setRemainingQty(newQuantity)`
+  in place. The order keeps its spot at the head of its `PriceLevel` FIFO queue.
+- **Otherwise** (price changed, or quantity increased) → `cancel(orderId)` then
+  process a fresh order. It reuses the same order id (so callers keep addressing
+  it) but gets a **new timestamp**, which is what sends it to the back of the
+  queue.
+
+This is also why `OrderService` — not the caller — owns timestamp generation: it
+is the single authority on time, so "a newer timestamp loses priority" is always
+true. A cancel routes straight to `OrderBook.removeOrder` (there is nothing to
+match), while submit and the cancel+new branch of modify both go through
+`MatchingEngine.process`, keeping all *matching* in one place.
+
 ## Maker vs Taker
 
 Why is the incoming order called the **taker** and the matched (resting) order

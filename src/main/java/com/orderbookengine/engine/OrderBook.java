@@ -5,6 +5,7 @@ import com.orderbookengine.model.Side;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -21,6 +22,9 @@ public class OrderBook {
     private final NavigableMap<Long, PriceLevel> bids;
     private final NavigableMap<Long, PriceLevel> asks;
 
+    /** Index of every currently resting order by id, for O(1) cancel/lookup. */
+    private final Map<Long, Order> ordersById = new HashMap<>();
+
     /** Creates an empty book with the conventional price orderings. */
     public OrderBook() {
         this(new TreeMap<>(Comparator.reverseOrder()), new TreeMap<>());
@@ -35,9 +39,11 @@ public class OrderBook {
         NavigableMap<Long, PriceLevel> book = bookFor(order.getSide());
         PriceLevel level = book.computeIfAbsent(order.getPrice(), PriceLevel::new);
         level.addOrder(order);
+        ordersById.put(order.getOrderId(), order);
     }
 
     public void removeOrder(Order order) {
+        ordersById.remove(order.getOrderId());
         NavigableMap<Long, PriceLevel> book = bookFor(order.getSide());
         PriceLevel level = book.get(order.getPrice());
         if (level == null) {
@@ -47,6 +53,11 @@ public class OrderBook {
         if (level.isEmpty()) {
             book.remove(order.getPrice());
         }
+    }
+
+    /** The resting order with this id, or {@code null} if none is on the book. */
+    public Order getOrder(long orderId) {
+        return ordersById.get(orderId);
     }
 
     /** The best (highest priced, oldest) resting buy order, or {@code null}. */
