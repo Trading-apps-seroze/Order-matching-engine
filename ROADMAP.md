@@ -1,0 +1,287 @@
+# Roadmap
+
+Status legend: ✅ done · 🚧 in progress · ⬜ not started
+
+---
+
+## Milestone 1 — Core Matching Engine (must have) ✅
+
+The foundation.
+
+**Domain**
+
+- `Order`, `Trade`, `Side`, `OrderType`, `OrderStatus`, `PriceLevel`
+
+**Order book structure**
+
+```
+TreeMap
+  ↓
+PriceLevel
+  ↓
+Queue<Order>
+```
+
+**Supported order types**
+
+- ✅ LIMIT
+- ✅ MARKET
+
+**Rules**
+
+- Price-time priority
+- Partial fills
+- Multiple price levels
+- FIFO within a price level
+- Trades execute at the **maker's** price
+
+This is the heart of the project.
+
+---
+
+## Milestone 2 — Order Management ⬜
+
+Add operations:
+
+- `submit(order)`
+- `cancel(orderId)`
+- `modify(orderId, ...)`
+
+Questions to answer:
+
+- Can quantity be modified?
+- Can price be modified?
+- Should modification lose time priority?
+
+Most exchanges treat a price change as **cancel + new order**, so it loses queue
+position.
+
+---
+
+## Milestone 3 — Richer Order Types 🚧
+
+After LIMIT and MARKET:
+
+- ✅ IOC (immediate-or-cancel)
+- ✅ FOK (fill-or-kill)
+
+Later:
+
+- ⬜ STOP
+- ⬜ STOP_LIMIT
+
+---
+
+## Milestone 4 — REST API ⬜
+
+Expose the engine.
+
+Example endpoints:
+
+- `POST   /orders`
+- `DELETE /orders/{id}`
+- `GET    /orderbook`
+- `GET    /trades`
+- `GET    /orders`
+
+The controller should do almost nothing:
+
+```
+JSON
+  ↓
+DTO
+  ↓
+OrderService
+  ↓
+MatchingEngine
+```
+
+---
+
+## Milestone 5 — Live UI ⬜
+
+What makes the project look polished — a simple React app.
+
+```
++----------------------------+
+| Buy Form                   |
++----------------------------+
+
++----------------------------+
+| Sell Form                  |
++----------------------------+
+
++----------------------------+
+| Trades                     |
++----------------------------+
+
++----------------------------+
+| Order Book                 |
+|                            |
+| Bids       Asks            |
+| 100 200    101 400         |
+| 99  100    102 600         |
++----------------------------+
+```
+
+---
+
+## Milestone 6 — WebSocket Updates ⬜
+
+Don't poll every second. Push instead:
+
+```
+New Trade
+   │
+   ▼
+MatchingEngine
+   │
+   ▼
+BookUpdatedEvent
+   │
+   ▼
+WebSocket
+   │
+   ▼
+Browser updates instantly
+```
+
+This feels much closer to a real trading application.
+
+---
+
+## Milestone 7 — Testing 🚧
+
+Where many interview projects are weak.
+
+**Unit tests**
+
+- Simple match — `BUY 100` vs `SELL 100`
+- Partial fill — `BUY 100` vs `SELL 30`
+- FIFO — `BUY #1, #2, #3`; a `SELL` arrives → expect fills in order `#1, #2, #3`
+- Multiple price levels — `SELL 100/101/102`, then `BUY @102`
+- Market orders
+- IOC
+- FOK
+- Cancel
+- Modify
+
+**Property tests**
+
+Generate random orders, verify invariants:
+
+- No negative quantity
+- No crossed book after matching
+- Total traded quantity is conserved
+- FIFO preserved at each price level
+
+Excellent interview talking points.
+
+---
+
+## Milestone 8 — Performance ⬜
+
+Generate **1,000,000** orders. Measure:
+
+- orders/sec
+- average latency
+- p99 latency
+
+Later, experiment with:
+
+- `ArrayDeque` vs custom linked list
+- different data structures
+- garbage generation
+
+---
+
+## Milestone 9 — Persistence ⬜
+
+Right now, if the process dies, everything disappears. Instead:
+
+```
+Order
+  ↓
+Append to log
+  ↓
+Match
+```
+
+On startup:
+
+```
+Replay log
+  ↓
+Rebuild order book
+```
+
+Introduces event sourcing and recovery.
+
+---
+
+## Milestone 10 — Multiple Symbols ⬜
+
+Instead of one order book:
+
+```
+Engine
+  AAPL
+  TSLA
+  MSFT
+  BTCUSD
+  ETHUSD
+```
+
+Something like:
+
+```
+Map<String, OrderBook>
+```
+
+or
+
+```
+Map<String, MatchingEngine>
+```
+
+---
+
+## Milestone 11 — Concurrency ⬜
+
+Instead of:
+
+```
+REST Thread
+  ↓
+Matching Engine
+```
+
+Move to:
+
+```
+REST Threads
+      │
+      ▼
+BlockingQueue<Order>
+      │
+      ▼
+Single Matching Thread
+```
+
+Guarantees deterministic order processing and avoids locking inside the matching
+engine.
+
+---
+
+## Milestone 12 — Observability ⬜
+
+Add:
+
+- execution latency
+- orders received
+- trades executed
+- rejected orders
+- current spread
+- best bid / ask
+
+Even simple logging and metrics make the project feel much more complete.
