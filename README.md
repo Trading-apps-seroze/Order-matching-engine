@@ -130,6 +130,14 @@ resting) return `400` with a JSON `{"error": ...}` body.
 
 ## Building and testing
 
+**Requires JDK 17 or newer** (built and tested with 21). Spring Boot 3.x needs
+the JVM that *runs Gradle* to be 17+ — if you see
+`Dependency requires at least JVM runtime version 17 ... This build uses a Java 8
+JVM`, point Gradle at a 17+ JDK:
+
+- **Terminal:** `export JAVA_HOME=/path/to/jdk21` before `./gradlew`.
+- **IntelliJ:** Settings → Build Tools → Gradle → set **Gradle JVM** to 21.
+
 This project uses the Gradle wrapper, so no local Gradle install is needed.
 
 ```bash
