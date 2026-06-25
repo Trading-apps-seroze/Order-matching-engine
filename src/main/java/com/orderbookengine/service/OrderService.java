@@ -7,8 +7,12 @@ import com.orderbookengine.model.OrderType;
 import com.orderbookengine.model.Side;
 import com.orderbookengine.model.Trade;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -27,6 +31,11 @@ public class OrderService {
     private final AtomicLong orderIdSeq = new AtomicLong(1);
     private final AtomicLong clock = new AtomicLong(1);
 
+    /** Every order the service has created, by id (insertion-ordered). */
+    private final Map<Long, Order> allOrders = new LinkedHashMap<>();
+    /** Every trade produced, in execution order. */
+    private final List<Trade> tradeLog = new ArrayList<>();
+
     public OrderService(MatchingEngine engine) {
         this.engine = engine;
     }
@@ -34,14 +43,21 @@ public class OrderService {
     /**
      * Creates and processes a new order, matching it against the book and
      * resting any remainder if its type allows.
+     *
+     * <p>The matching engine is not thread-safe, so the mutating operations
+     * ({@code submit}, {@code cancel}, {@code modify}) are serialized here. A
+     * dedicated single matching thread (see {@code ROADMAP.md}, Milestone 11)
+     * will replace this coarse lock later.
      */
-    public OrderResult submit(Side side, OrderType type, long price, long quantity) {
+    public synchronized OrderResult submit(Side side, OrderType type, long price, long quantity) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("quantity must be positive: " + quantity);
         }
         Order order = new Order(orderIdSeq.getAndIncrement(), side, type, price, quantity,
                 clock.getAndIncrement());
         List<Trade> trades = engine.process(order);
+        allOrders.put(order.getOrderId(), order);
+        tradeLog.addAll(trades);
         return new OrderResult(order, trades);
     }
 
@@ -52,7 +68,7 @@ public class OrderService {
      *         {@code false} if no such order is on the book (already filled,
      *         already cancelled, or never rested)
      */
-    public boolean cancel(long orderId) {
+    public synchronized boolean cancel(long orderId) {
         Order resting = engine.getOrderBook().getOrder(orderId);
         if (resting == null) {
             return false;
@@ -75,7 +91,7 @@ public class OrderService {
      * @throws IllegalArgumentException if the order is not resting or the new
      *         quantity is not positive
      */
-    public OrderResult modify(long orderId, long newQuantity, long newPrice) {
+    public synchronized OrderResult modify(long orderId, long newQuantity, long newPrice) {
         if (newQuantity <= 0) {
             throw new IllegalArgumentException(
                     "new quantity must be positive (use cancel to remove): " + newQuantity);
@@ -101,6 +117,23 @@ public class OrderService {
         Order replacement = new Order(orderId, existing.getSide(), existing.getType(),
                 newPrice, newQuantity, clock.getAndIncrement());
         List<Trade> trades = engine.process(replacement);
+        allOrders.put(replacement.getOrderId(), replacement);
+        tradeLog.addAll(trades);
         return new OrderResult(replacement, trades);
+    }
+
+    /** A resting order by id, or {@code null} if it is not on the book. */
+    public synchronized Order getRestingOrder(long orderId) {
+        return engine.getOrderBook().getOrder(orderId);
+    }
+
+    /** Snapshot of every order the service has seen, in creation order. */
+    public synchronized Collection<Order> getAllOrders() {
+        return new ArrayList<>(allOrders.values());
+    }
+
+    /** Snapshot of the full trade log, in execution order. */
+    public synchronized List<Trade> getTrades() {
+        return new ArrayList<>(tradeLog);
     }
 }

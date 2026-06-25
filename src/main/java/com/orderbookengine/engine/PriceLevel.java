@@ -48,7 +48,7 @@ public class PriceLevel {
     }
 
     /** Sum of the remaining (unfilled) quantity of every order at this level. */
-    long totalQuantity() {
+    public long totalQuantity() {
         long total = 0;
         for (Order order : orders) {
             total += order.getRemainingQty();

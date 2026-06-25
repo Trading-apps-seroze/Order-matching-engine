@@ -1,5 +1,7 @@
 plugins {
     id 'java'
+    id 'org.springframework.boot' version '3.3.5'
+    id 'io.spring.dependency-management' version '1.1.6'
 }
 
 repositories {
@@ -7,9 +9,14 @@ repositories {
 }
 
 dependencies {
-    testImplementation 'junit:junit:4.13.2'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    // The existing engine/service tests are JUnit 4; the vintage engine runs
+    // them on the JUnit Platform alongside Spring's JUnit 5 test support.
+    testImplementation 'org.junit.vintage:junit-vintage-engine'
 }
 
 test {
-    useJUnit()
+    useJUnitPlatform()
 }

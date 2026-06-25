@@ -73,19 +73,18 @@ Later:
 
 ---
 
-## Milestone 4 — REST API ⬜
+## Milestone 4 — REST API ✅
 
-Expose the engine.
+Spring Boot web layer in the `api` package; thin controllers over `OrderService`.
 
-Example endpoints:
+- ✅ `POST   /orders`        — submit
+- ✅ `PUT    /orders/{id}`   — modify
+- ✅ `DELETE /orders/{id}`   — cancel
+- ✅ `GET    /orders`        — list
+- ✅ `GET    /orderbook`     — aggregated snapshot (`?depth=N`)
+- ✅ `GET    /trades`        — trade log
 
-- `POST   /orders`
-- `DELETE /orders/{id}`
-- `GET    /orderbook`
-- `GET    /trades`
-- `GET    /orders`
-
-The controller should do almost nothing:
+Controllers do almost nothing:
 
 ```
 JSON
@@ -96,6 +95,9 @@ OrderService
   ↓
 MatchingEngine
 ```
+
+Run with `./gradlew bootRun` (port 8080). Validation errors map to `400` via a
+`@RestControllerAdvice`.
 
 ---
 

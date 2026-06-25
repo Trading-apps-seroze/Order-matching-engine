@@ -49,6 +49,42 @@ concept.
 - **`MatchingEngine`** — walks the opposite side of the book, generating
   `Trade`s, and rests or discards the taker's remainder according to its type.
 
+## REST API
+
+A Spring Boot web layer exposes the engine. Start it with:
+
+```bash
+./gradlew bootRun        # serves on http://localhost:8080
+```
+
+The controllers are deliberately thin — they only translate JSON DTOs to and
+from `OrderService` calls (`JSON → DTO → OrderService → MatchingEngine`).
+
+| Method   | Path             | Description                                    |
+|----------|------------------|------------------------------------------------|
+| `POST`   | `/orders`        | Submit a new order; returns the order + trades |
+| `PUT`    | `/orders/{id}`   | Modify a resting order (quantity / price)      |
+| `DELETE` | `/orders/{id}`   | Cancel a resting order (`204`, or `404`)       |
+| `GET`    | `/orders`        | List every order the service has seen          |
+| `GET`    | `/orderbook`     | Aggregated book snapshot (`?depth=N`, best first) |
+| `GET`    | `/trades`        | The trade log, in execution order              |
+
+Example:
+
+```bash
+# Submit a limit sell, then a crossing buy
+curl -X POST localhost:8080/orders -H 'Content-Type: application/json' \
+  -d '{"side":"SELL","type":"LIMIT","price":101,"quantity":50}'
+curl -X POST localhost:8080/orders -H 'Content-Type: application/json' \
+  -d '{"side":"BUY","type":"LIMIT","price":101,"quantity":20}'
+
+curl localhost:8080/orderbook
+curl localhost:8080/trades
+```
+
+Validation failures (bad quantity, unknown order on modify) return `400` with a
+JSON `{"error": ...}` body.
+
 ## Building and testing
 
 This project uses the Gradle wrapper, so no local Gradle install is needed.
@@ -57,7 +93,7 @@ This project uses the Gradle wrapper, so no local Gradle install is needed.
 # Run the test suite
 ./gradlew test
 
-# Compile only
+# Build (compile, test, package the runnable jar)
 ./gradlew build
 ```
 
@@ -65,11 +101,17 @@ This project uses the Gradle wrapper, so no local Gradle install is needed.
 
 ```
 src/main/java/com/orderbookengine/
-  engine/   MatchingEngine, OrderBook, PriceLevel
-  model/    Order, Trade, Side, OrderType, OrderStatus
+  OrderBookEngineApplication.java   Spring Boot entry point
+  api/        controllers + dto/    HTTP edge (JSON ↔ DTO)
+  service/    OrderService, OrderResult
+  engine/     MatchingEngine, OrderBook, PriceLevel
+  model/      Order, Trade, Side, OrderType, OrderStatus
+  config/     EngineConfig (bean wiring)
 src/test/java/com/orderbookengine/
-  MatchingEngineTest.java
+  MatchingEngineTest.java, OrderServiceTest.java
 ```
+
+Dependency direction: `api → service → engine → model`.
 
 ## Roadmap
 
