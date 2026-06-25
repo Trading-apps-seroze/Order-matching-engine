@@ -101,7 +101,12 @@ Run with `./gradlew bootRun` (port 8080). Validation errors map to `400` via a
 
 ---
 
-## Milestone 5 — Live UI ⬜
+## Milestone 5 — Live UI 🚧
+
+Scaffolded as a React + Vite app in `frontend/` (buy/sell tickets, order book,
+trade log; polls the REST API and refreshes on submit). Updates currently poll
+once a second — Milestone 6 swaps that for WebSocket push. See
+[`frontend/README.md`](frontend/README.md).
 
 What makes the project look polished — a simple React app.
 

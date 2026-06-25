@@ -49,11 +49,23 @@ concept.
 - **`MatchingEngine`** — walks the opposite side of the book, generating
   `Trade`s, and rests or discards the taker's remainder according to its type.
 
+## Repository layout
+
+This is a monorepo with two sibling apps:
+
+```
+backend/    Java + Spring Boot matching engine and REST API
+frontend/   React + Vite UI (see frontend/README.md)
+```
+
+Run the backend from `backend/` and the UI from `frontend/`.
+
 ## REST API
 
-A Spring Boot web layer exposes the engine. Start it with:
+A Spring Boot web layer exposes the engine. Start it from `backend/`:
 
 ```bash
+cd backend
 ./gradlew bootRun        # serves on http://localhost:8080
 ```
 
@@ -71,8 +83,8 @@ from `OrderService` calls (`JSON → DTO → OrderService → MatchingEngine`).
 
 ### Try it with curl
 
-Start the server (`./gradlew bootRun`), then run these in order. They seed a
-book, cross it, then exercise modify/cancel and the read endpoints.
+Start the server (`cd backend && ./gradlew bootRun`), then run these in order.
+They seed a book, cross it, then exercise modify/cancel and the read endpoints.
 
 ```bash
 BASE=http://localhost:8080
@@ -138,9 +150,12 @@ JVM`, point Gradle at a 17+ JDK:
 - **Terminal:** `export JAVA_HOME=/path/to/jdk21` before `./gradlew`.
 - **IntelliJ:** Settings → Build Tools → Gradle → set **Gradle JVM** to 21.
 
-This project uses the Gradle wrapper, so no local Gradle install is needed.
+The backend uses the Gradle wrapper, so no local Gradle install is needed. Run
+from `backend/`:
 
 ```bash
+cd backend
+
 # Run the test suite
 ./gradlew test
 
@@ -151,15 +166,17 @@ This project uses the Gradle wrapper, so no local Gradle install is needed.
 ## Project layout
 
 ```
-src/main/java/com/orderbookengine/
+backend/src/main/java/com/orderbookengine/
   OrderBookEngineApplication.java   Spring Boot entry point
   api/        controllers + dto/    HTTP edge (JSON ↔ DTO)
   service/    OrderService, OrderResult
   engine/     MatchingEngine, OrderBook, PriceLevel
   model/      Order, Trade, Side, OrderType, OrderStatus
   config/     EngineConfig (bean wiring)
-src/test/java/com/orderbookengine/
+backend/src/test/java/com/orderbookengine/
   MatchingEngineTest.java, OrderServiceTest.java
+frontend/src/
+  App.jsx, api.js, components/    React UI (see frontend/README.md)
 ```
 
 Dependency direction: `api → service → engine → model`.

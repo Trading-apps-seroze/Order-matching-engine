@@ -2,6 +2,12 @@
 .gradle/
 build/
 
+# Node / frontend
+node_modules/
+dist/
+npm-debug.log*
+.vite/
+
 # IDE
 .idea/
 *.iml
