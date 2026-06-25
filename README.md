@@ -69,21 +69,64 @@ from `OrderService` calls (`JSON → DTO → OrderService → MatchingEngine`).
 | `GET`    | `/orderbook`     | Aggregated book snapshot (`?depth=N`, best first) |
 | `GET`    | `/trades`        | The trade log, in execution order              |
 
-Example:
+### Try it with curl
+
+Start the server (`./gradlew bootRun`), then run these in order. They seed a
+book, cross it, then exercise modify/cancel and the read endpoints.
 
 ```bash
-# Submit a limit sell, then a crossing buy
-curl -X POST localhost:8080/orders -H 'Content-Type: application/json' \
-  -d '{"side":"SELL","type":"LIMIT","price":101,"quantity":50}'
-curl -X POST localhost:8080/orders -H 'Content-Type: application/json' \
-  -d '{"side":"BUY","type":"LIMIT","price":101,"quantity":20}'
+BASE=http://localhost:8080
+JSON='Content-Type: application/json'
 
-curl localhost:8080/orderbook
-curl localhost:8080/trades
+# 1. Rest two sell orders and one buy (no crossing yet)
+curl -s -X POST $BASE/orders -H "$JSON" \
+  -d '{"side":"SELL","type":"LIMIT","price":101,"quantity":50}'   # -> orderId 1
+curl -s -X POST $BASE/orders -H "$JSON" \
+  -d '{"side":"SELL","type":"LIMIT","price":102,"quantity":30}'   # -> orderId 2
+curl -s -X POST $BASE/orders -H "$JSON" \
+  -d '{"side":"BUY","type":"LIMIT","price":100,"quantity":40}'    # -> orderId 3
+
+# 2. Snapshot the book (best price first; ?depth=N to limit levels)
+curl -s "$BASE/orderbook"
+curl -s "$BASE/orderbook?depth=1"
+
+# 3. Submit a crossing buy -> trades at the maker's price (101)
+curl -s -X POST $BASE/orders -H "$JSON" \
+  -d '{"side":"BUY","type":"LIMIT","price":101,"quantity":20}'    # -> orderId 4, FILLED
+
+# 4. Market order (no price needed) sweeps the best asks
+curl -s -X POST $BASE/orders -H "$JSON" \
+  -d '{"side":"BUY","type":"MARKET","quantity":10}'
+
+# 5. IOC / FOK
+curl -s -X POST $BASE/orders -H "$JSON" \
+  -d '{"side":"BUY","type":"IOC","price":102,"quantity":1000}'    # fills what it can, cancels rest
+curl -s -X POST $BASE/orders -H "$JSON" \
+  -d '{"side":"BUY","type":"FOK","price":102,"quantity":1000}'    # all-or-nothing -> CANCELLED
+
+# 6. Modify the resting buy (orderId 3): note the id is in the URL, not the body.
+#    Quantity-only decrease at the same price keeps queue position.
+curl -s -X PUT $BASE/orders/3 -H "$JSON" -d '{"quantity":25,"price":100}'
+#    Changing the price re-queues it (cancel + new under the same id).
+curl -s -X PUT $BASE/orders/3 -H "$JSON" -d '{"quantity":25,"price":99}'
+
+# 7. Cancel a resting order -> 204; cancelling an unknown/filled one -> 404
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE $BASE/orders/3   # 204
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE $BASE/orders/999 # 404
+
+# 8. List every order seen, and the trade log
+curl -s "$BASE/orders"
+curl -s "$BASE/trades"
+
+# 9. Validation error -> 400 with a JSON error body
+curl -s -X POST $BASE/orders -H "$JSON" \
+  -d '{"side":"BUY","type":"LIMIT","price":100,"quantity":0}'
 ```
 
-Validation failures (bad quantity, unknown order on modify) return `400` with a
-JSON `{"error": ...}` body.
+> Tip: pipe any response through `| jq` for pretty-printed JSON.
+
+Validation failures (non-positive quantity, modifying an order that isn't
+resting) return `400` with a JSON `{"error": ...}` body.
 
 ## Building and testing
 
