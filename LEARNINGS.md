@@ -69,6 +69,74 @@ Now compare with a fillable FOK — Incoming: `BUY 30 @100 FOK`
 | IOC    | No             | Yes                   | Cancelled            |
 | FOK    | No             | No (all-or-nothing)   | Whole order cancelled if it can't fully fill |
 
+## Stop and Stop-Limit Orders
+
+> **Note:** *Not yet implemented* — planned next (`OrderType.STOP` and
+> `OrderType.STOP_LIMIT`). Definitions captured here ahead of the work.
+
+Everything so far (LIMIT, MARKET, IOC, FOK) becomes *active* the moment it
+arrives. A **stop order is dormant**: it sits off to the side, *not on the book*,
+until the market reaches a **trigger price**. Only then does it "wake up" and turn
+into a normal order. Think of it as a conditional: *"once the price hits X, send
+this order."*
+
+A stop carries two prices:
+
+- **Stop (trigger) price** — the level that arms the order.
+- For a stop-*limit*, also a **limit price** — the price the order uses once
+  triggered.
+
+### STOP (a.k.a. stop-market)
+
+When triggered, it fires a **MARKET** order — guaranteed to execute (if there's
+liquidity), but at whatever price the book offers.
+
+- **Sell stop** triggers when the market trades **at or below** the stop price.
+  Classic stop-loss: "if it drops to 95, get me out at market."
+- **Buy stop** triggers when the market trades **at or above** the stop price.
+  Used to cap a short, or to buy into a breakout.
+
+### STOP_LIMIT
+
+When triggered, it places a **LIMIT** order at the pre-set limit price instead of
+a market order. You control the worst price you'll accept, but you risk **not
+filling at all** if the market gaps past your limit.
+
+- Example sell stop-limit: stop `95`, limit `94`. If the price touches 95, a
+  `SELL @94` limit order is placed. If the market crashes straight through 94,
+  nothing fills and you're still holding.
+
+### STOP vs STOP_LIMIT — the trade-off
+
+| | Triggers into | Fill guaranteed? | Price guaranteed? |
+|---|---|---|---|
+| STOP        | MARKET order | Yes (if liquidity) | No  |
+| STOP_LIMIT  | LIMIT order  | No                 | Yes (limit or better) |
+
+### Why the trigger direction matters
+
+The condition is always "the market moved *against* a level you care about":
+
+- A **sell** stop protects a long position, so it triggers on the way **down**
+  (price ≤ stop).
+- A **buy** stop protects a short / chases a breakout, so it triggers on the way
+  **up** (price ≥ stop).
+
+Note this is the *opposite* of a limit order's crossing logic — a stop's trigger
+is about the **last traded price** (or best bid/ask) reaching the level, not
+about whether it crosses the spread.
+
+### Implementation notes (for next time)
+
+- Stops are **not** kept in the bid/ask `TreeMap`s — they're a separate pending
+  set, keyed by trigger price, because they must not be matchable while dormant.
+- Something has to **watch the market** and check pending stops after every
+  trade (the last trade price is the natural trigger signal). On trigger, remove
+  the stop from the pending set and route it through `MatchingEngine.process` as
+  a MARKET (STOP) or LIMIT (STOP_LIMIT) order.
+- Watch for **cascades**: one triggered stop can move the price and trip further
+  stops in the same pass — process them in a loop until no more trigger.
+
 ## Modifying orders and time priority
 
 When an order is already resting on the book, can you change it without losing
